@@ -8,13 +8,11 @@ import malis as m
 print "Can we make the `nhood' for an isotropic 3d dataset"
 print "corresponding to a 6-connected neighborhood?"
 nhood = m.mknhood3d(1)
-print nhood
 
 print "Can we make the `nhood' for an anisotropic 3d dataset"
 print "corresponding to a 4-connected neighborhood in-plane"
 print "and 26-connected neighborhood in the previous z-plane?"
 nhood = m.mknhood3d_aniso(1,1.8)
-print nhood
 
 segTrue = np.array([0, 1, 1, 1, 2, 2, 0, 5, 5, 5, 5],dtype=np.int32);
 node1 = np.arange(segTrue.shape[0]-1,dtype=np.int32)
@@ -22,12 +20,14 @@ node2 = np.arange(1,segTrue.shape[0],dtype=np.int32)
 nVert = segTrue.shape[0]
 edgeWeight = np.array([0, 1, 2, 0, 2, 0, 0, 1, 2, 2.5],dtype=np.float32);
 edgeWeight = edgeWeight/edgeWeight.max()
-print segTrue
-print edgeWeight
 
 nPairPos = m.malis_loss_weights(segTrue, node1, node2, edgeWeight, 1)
 nPairNeg = m.malis_loss_weights(segTrue, node1, node2, edgeWeight, 0)
+print segTrue
+print node1
+print node2
 print np.vstack((nPairPos,nPairNeg))
+quit()
 # print nPairNeg
 
 idxkeep = (edgeWeight > 0).astype(np.int32)

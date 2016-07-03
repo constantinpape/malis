@@ -26,6 +26,16 @@ class AffinityGraphCompare{
  * Author: Srini Turaga (sturaga@mit.edu)
  * All rights reserved
  */
+
+// Trying to understand this...
+// Parameters: nVert: Number of nodes (= number of pixels)
+// seg : pointer to the groundtruth segmentation
+// nEdge : number of edges (= number of pixels * neighborhood)
+// node1: pointer to uvids[0]
+// node2: pointer to uvids[1] 
+// edgeWeight: pointer to the edge weights TODO what shape is expected here?
+// pos: magic parameter TODO wtf is this ?, it is used as a bool!
+// nPairEdge: pointer to returnval
 void malis_loss_weights_cpp(const int nVert, const int* seg,
                const int nEdge, const int* node1, const int* node2, const float* edgeWeight,
                const int pos,
@@ -33,19 +43,24 @@ void malis_loss_weights_cpp(const int nVert, const int* seg,
 
 
     /* Disjoint sets and sparse overlap vectors */
+    // for every node, store with how many nodes of a given gt segment it was merged
     vector<map<int,int> > overlap(nVert);
+    
+    // this is boost's UDF
     vector<int> rank(nVert);
     vector<int> parent(nVert);
     boost::disjoint_sets<int*, int*> dsets(&rank[0],&parent[0]);
     for (int i=0; i<nVert; ++i){
         dsets.make_set(i);
         if (0!=seg[i]) {
+            // initialize with map from gt_id -> 1
             overlap[i].insert(pair<int,int>(seg[i],1));
         }
     }
 
     /* Sort all the edges in increasing order of weight */
     std::vector< int > pqueue( nEdge );
+    // j counts the number of valud edges (which connect nodes with a valid id)
     int j = 0;
     for ( int i = 0; i < nEdge; i++ ){
         if ((node1[i]>=0) && (node1[i]<nVert) && (node2[i]>=0) && (node2[i]<nVert))
@@ -53,6 +68,7 @@ void malis_loss_weights_cpp(const int nVert, const int* seg,
     }
     unsigned long nValidEdge = j;
     pqueue.resize(nValidEdge);
+    // sort the edge queue according to the edge weights
     sort( pqueue.begin(), pqueue.end(), AffinityGraphCompare<float>( edgeWeight ) );
 
 
@@ -63,16 +79,25 @@ void malis_loss_weights_cpp(const int nVert, const int* seg,
     map<int,int>::iterator it1, it2;
 
     /* Start Kruskal's */
+
+    // iterate over the edges
     for (unsigned int i = 0; i < pqueue.size(); ++i ) {
+        // get current edge
         e = pqueue[i];
 
+        // get representatives of nodes connected by the edge
         set1 = dsets.find_set(node1[e]);
         set2 = dsets.find_set(node2[e]);
 
+        // only do stuff, if the representatives are different (note that in the beginning all are different!)
         if (set1!=set2){
+            
+            // merge the representatives
             dsets.link(set1, set2);
 
             /* compute the number of pairs merged by this MST edge */
+
+            // iterate over the overlaps (TODO what are these) of the two nodes representatives
             for (it1 = overlap[set1].begin();
                     it1 != overlap[set1].end(); ++it1) {
                 for (it2 = overlap[set2].begin();
@@ -80,26 +105,37 @@ void malis_loss_weights_cpp(const int nVert, const int* seg,
 
                     nPair = it1->second * it2->second;
 
+                    // here we have our pos int abused as bool
+                    // this counts the number of correct merge (it->first = gt id)
                     if (pos && (it1->first == it2->first)) {
                         nPairPerEdge[e] += nPair;
-                    } else if ((!pos) && (it1->first != it2->first)) {
+                    } 
+                    // this counts the number of false merges
+                    else if ((!pos) && (it1->first != it2->first)) {
                         nPairPerEdge[e] += nPair;
                     }
                 }
             }
 
             /* move the pixel bags of the non-representative to the representative */
+
+            // swap references if the merged set has representative of set2
             if (dsets.find_set(set1) == set2) // make set1 the rep to keep and set2 the rep to empty
                 swap(set1,set2);
 
+            // loop over the overlaps of set2 and move them to set1
             it2 = overlap[set2].begin();
             while (it2 != overlap[set2].end()) {
+                // look if this gt segment has already overlap with set2
                 it1 = overlap[set1].find(it2->first);
                 if (it1 == overlap[set1].end()) {
+                    // no: insert overlap
                     overlap[set1].insert(pair<int,int>(it2->first,it2->second));
                 } else {
+                    // yes: add overlap
                     it1->second += it2->second;
                 }
+                // remove overlap of set2
                 overlap[set2].erase(it2++);
             }
         } // end link

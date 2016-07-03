@@ -15,6 +15,15 @@ cdef extern from "malis_cpp.h":
                    const int nEdge, const int* node1, const int* node2, const float* edgeWeight,
                    int* seg);
 
+
+# for each edge, calculate the number of correct merges (pos = 1) / false merges (pos = 0) caused by the edge
+# parameter: segTrue: groundtruth segmentation (from 3d segmentation w/ shape (z,y,x) via ravel  )
+# node1: first entry of uvIds
+# node2: second entry of uvIds
+# edgeWeight: edge weights (affinities predicted by cnn)
+# pos: pseudo bool which determines whether correct (pos=1) or false (pos=0) merges are counted
+
+# node1, node2 can be obtained from affgraph_to_edgelist(affgraph, nhood) for expected shape of affgraph (e,z,y,x), where e = 3 (x,y,z - affinity) and suited neighbourhood via one of the mknhood functions
 def malis_loss_weights(np.ndarray[int, ndim=1] segTrue,
                 np.ndarray[int, ndim=1] node1,
                 np.ndarray[int, ndim=1] node2,
@@ -74,7 +83,8 @@ def marker_watershed(np.ndarray[int,ndim=1] marker,
 def prune_and_renum(np.ndarray[int,ndim=1] seg,
                     int sizeThreshold=1):
     # renumber the components in descending order by size
-    segId,segSizes = np.unique(seg, return_counts=True)
+    segId = np.unique(seg)
+    segSizes = np.bincount(seg)
     descOrder = np.argsort(segSizes)[::-1]
     renum = np.zeros(segId.max()+1,dtype=np.int32)
     segId = segId[descOrder]
